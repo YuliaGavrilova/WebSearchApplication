@@ -1,0 +1,131 @@
+﻿@model WebSearch.Web.Models.SearchViewModel
+@{
+    var modelJson = System.Text.Json.JsonSerializer.Serialize(Model);
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="container mt-4">
+    <div id="vue-app">
+        <div class="form-group mt-3">
+            <label for="url">Url of interest:</label>
+            <input type="text" v-model="model.Url" class="form-control">
+        </div>
+        <div class="form-group mt-3">
+            <label for="comments">Keywords:</label>
+            <textarea v-model="model.KeyWords" class="form-control" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="options">Choose Search Engine:</label>
+            <select v-model="model.SearchEngineSelected" class="form-control" id="options">
+                <option v-for="option in model.SearchEngineOptions" :value="option.Value" :key="option.Value">
+                    {{ option.Text }}
+                </option>
+            </select>
+        </div>
+        <button @@click="submitData" class="btn btn-primary mt-3">Search</button>
+    </div>
+</div>
+
+<script>
+    const app = Vue.createApp({
+        data() {
+            return {
+                model: @Html.Raw(modelJson)
+               
+            };
+        },
+        methods: {
+            async submitData() {
+                try {
+                    // Construct the basic authentication header
+                   
+                    // Send a POST request to the CreateOrGetSearch endpoint
+                    const response = await fetch('https://localhost:7221/SearchApi', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            url: this.model.Url,
+                            keyWords: this.model.KeyWords,
+                            searchEngine: this.model.SearchEngineSelected,
+                            daily: this.model.Daily
+                        })
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        console.log(result);
+                        this.handleSearchRun(result);
+                    } else {
+                        const errorText = await response.text();
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred while submitting the search.' +error);
+                }
+            },
+            async handleSearchRun(searchId) {
+                const response = await fetch(`https://localhost:7221/ActionApi?url=${encodeURIComponent(this.model.Url)}&keyWords=${encodeURIComponent(this.model.KeyWords)}&searchEngine=${encodeURIComponent(this.model.SearchEngineSelected)}&searchId=${searchId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                if (response.ok) {
+                        const result = await response.json();
+                        console.log(result);
+                        this.handleSearchSuccess(result,searchId);
+                } else {
+                        const errorText = await response.text();
+                }
+            },
+            async handleSearchSuccess(result,searchId) {
+
+                const response = await fetch('https://localhost:7221/SearchApi/' + searchId+'/runs', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            SearchId: result.searchId,
+                            Result: result.Result,
+                            Created: result.Created
+                        })
+                    });
+                if (response.ok) {
+                    this.model.SearchId = searchId;
+                    this.fetchSearchResults(searchId);
+                 } else {
+                        const errorText = await response.text();
+                        alert(`Failed to save a search run. Error: ${errorText}`);
+                }
+            },
+            async fetchSearchResults(searchId) {
+                try {
+                    const response = await fetch(`/SearchApi/${searchId}/runs`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const results = await response.json();
+                        console.log('Search results:', results);
+                        // Update the UI with the search results
+                        this.model.SearchRuns = results.SearchRuns;
+                    } else {
+                        const errorText = await response.text();
+                        alert(`Failed to fetch search results. Error: ${errorText}`);
+                    }
+                } catch (error) {
+                    console.error('Error fetching search results:', error);
+                }
+            }
+        }
+    });
+    app.mount('#vue-app');
+</script>
+
+

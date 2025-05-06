@@ -1,0 +1,6 @@
+@WebSearchApi_HostAddress = http://localhost:5068
+
+GET {{WebSearchApi_HostAddress}}/SearchApi/
+Accept: application/json
+
+###
